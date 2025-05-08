@@ -53,10 +53,10 @@ class PodcastRecommender:
 
     def train_doc2vec_model(self):
         documents = []
-        for _, row in self.df.iterrows():
+        for idx, row in self.df.iterrows():
             # Create TaggedDocument for episode names and descriptions
-            episode_name_doc = TaggedDocument(words=row['clean_episodeName'].split(), tags=[f"episode_{_}"])
-            description_doc = TaggedDocument(words=row['clean_description'].split(), tags=[f"description_{_}"])
+            episode_name_doc = TaggedDocument(words=row['clean_episodeName'].split(), tags=[f"episode_{idx}"])
+            description_doc = TaggedDocument(words=row['clean_description'].split(), tags=[f"description_{idx}"])
             documents.extend([episode_name_doc, description_doc])
 
         # Train the model
@@ -67,9 +67,9 @@ class PodcastRecommender:
 
     def get_similarity(self, s1, s2):
         # Convert strings to vectors using the trained model
-        vec1 = self.model.infer_vector(s1.split())
-        vec2 = self.model.infer_vector(s2.split())
-        return self.model.dv.cosine(vec1, vec2)
+        vec1 = self.model.infer_vector(s1.split())  # Infer vector for query
+        vec2 = self.model.infer_vector(s2.split())  # Infer vector for the podcast
+        return self.model.dv.cosine(vec1, vec2)  # Calculate cosine similarity
 
     def recommend(self, query, by='title', n=5):
         sim_list = []
