@@ -44,30 +44,32 @@ def load_podcast_data():
 
 class PodcastRecommender:
     def __init__(self, data):
-        self.df = data.dropna(subset=['episodeName', 'clean_description'])
-        self.df['clean_episodeName'] = self.df['episodeName'].str.lower().str.strip()
+        # Убираем строки с пустыми значениями для описания эпизодов
+        self.df = data.dropna(subset=['clean_description'])
         self.df['clean_description'] = self.df['clean_description'].str.lower().str.strip()
         
-        # Обучаем модель Doc2Vec
-        tagged_data = [TaggedDocument(words=doc.split(), tags=[str(i)]) for i, doc in enumerate(self.df['clean_episodeName'])]
+        # Обучаем модель Doc2Vec на основе только описания эпизодов
+        tagged_data = [TaggedDocument(words=row['clean_description'].split(), tags=[str(i)]) for i, row in self.df.iterrows()]
         self.model = Doc2Vec(vector_size=100, window=2, min_count=1, workers=4)
         self.model.build_vocab(tagged_data)
         self.model.train(tagged_data, total_examples=self.model.corpus_count, epochs=10)
 
     def get_similarity(self, s1, s2):
         try:
-            # Проверка на наличие ключа в модели
+            # Получаем векторные представления для двух описаний
             vec1 = self.model.infer_vector(s1.split())
             vec2 = self.model.infer_vector(s2.split())
+            # Рассчитываем схожесть между этими векторами
             return self.model.dv.similarity(vec1, vec2)
         except KeyError:
             return 0  # Если ключа нет в модели, возвращаем нулевую схожесть
 
     def recommend(self, query, n=5):
         sim_list = []
+        query_clean = query.lower().strip()
         for _, row in self.df.iterrows():
-            sim = self.get_similarity(query, row['clean_episodeName'])
-
+            # Рассчитываем схожесть с описанием эпизода
+            sim = self.get_similarity(query_clean, row['clean_description'])
             sim_list.append({
                 'title': row['episodeName'],
                 'description': row['clean_description'],
@@ -79,7 +81,6 @@ class PodcastRecommender:
                 'duration': row.get('duration_min', '—')
             })
         return sorted(sim_list, key=lambda x: x['similarity'], reverse=True)[:n]
-
 def main():
     st.title("🎧 NextPodcast — Рекомендации по подкастам")
 
