@@ -65,11 +65,14 @@ class PodcastRecommender:
         return {
             'podcastID': row['rank'],  # Используем rank вместо ID
             'title': row['episodeName'],  # Название эпизода
-            'description': row['description'],  # Описание
+            'description': row['clean_description'],  # Описание
             'similarity': similarity,
             'genres': row.get('show.name', 'Не указано'),  # Жанры
             'episodes_count': row.get('show.total_episodes', 0),  # Количество эпизодов
-            'average_rating': row.get('rank', 'N/A')  # Используем rank как рейтинг
+            'average_rating': row.get('rank', 'N/A'),  # Используем rank как рейтинг
+            'publisher': row['show.publisher'],
+            'explicit': row['explicit'],
+            'duration': row['duration_min']
         }
 
 def main():
@@ -96,31 +99,36 @@ def main():
     for i, podcast in top_podcasts.iterrows():
         st.markdown(f"**{podcast['episodeName']}** - Рейтинг: {podcast['rank']} ⭐")
 
-    # Получаем рекомендацию
-    search_type = st.sidebar.radio("Искать по:", ["Название эпизода", "Описание эпизода"])
+    # Панель для ввода данных
+    with st.expander("Поиск по названию или описанию подкаста"):
+        search_type = st.radio("Искать по:", ["Название эпизода", "Описание эпизода"])
 
-    if search_type == "Название эпизода":
-        query = st.sidebar.selectbox("Выберите эпизод:", options=data['episodeName'].unique())
-        by = 'title'
-    else:
-        query = st.sidebar.text_input("Введите описание эпизода:", "")
-        by = 'description'
+        if search_type == "Название эпизода":
+            query = st.selectbox("Выберите эпизод:", options=data['episodeName'].unique())
+            by = 'title'
+        else:
+            query = st.text_input("Введите описание эпизода:", "")
+            by = 'description'
 
-    n_recommendations = st.sidebar.slider("Количество рекомендаций:", min_value=1, max_value=10, value=5)
+        n_recommendations = st.slider("Количество рекомендаций:", min_value=1, max_value=10, value=5)
 
-    if st.sidebar.button("Получить рекомендации"):
-        recommendations = recommender.recommend_podcasts(query, by, n_recommendations)
+        if st.button("Получить рекомендации"):
+            recommendations = recommender.recommend_podcasts(query, by, n_recommendations)
 
-        for i, podcast in enumerate(recommendations, 1):
-            st.markdown(f"""
-            <div class="recommendation-card">
-                <h3>{i}. {podcast['title']}</h3>
-                <p><strong>Жанры:</strong> {podcast['genres']}</p>
-                <p><strong>Похожесть:</strong> {podcast['similarity']:.2f}</p>
-                <p><strong>Оценка:</strong> {podcast['average_rating']}</p>
-                <p><strong>Количество эпизодов:</strong> {podcast['episodes_count']}</p>
-            </div>
-            """, unsafe_allow_html=True)
+            # Вывод рекомендаций
+            for i, podcast in enumerate(recommendations, 1):
+                st.markdown(f"""
+                <div class="recommendation-card">
+                    <h3>{i}. {podcast['title']}</h3>
+                    <p><strong>Жанры:</strong> {podcast['genres']}</p>
+                    <p><strong>Похожесть:</strong> {podcast['similarity']:.2f}</p>
+                    <p><strong>Оценка:</strong> {podcast['average_rating']}</p>
+                    <p><strong>Количество эпизодов:</strong> {podcast['episodes_count']}</p>
+                    <p><strong>Издатель:</strong> {podcast['publisher']}</p>
+                    <p><strong>Эксплицитный:</strong> {podcast['explicit']}</p>
+                    <p><strong>Продолжительность (мин.):</strong> {podcast['duration']}</p>
+                </div>
+                """, unsafe_allow_html=True)
 
 if __name__ == "__main__":
     main()
