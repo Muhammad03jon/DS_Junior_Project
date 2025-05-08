@@ -1,12 +1,13 @@
 import streamlit as st
 import pandas as pd
-from difflib import SequenceMatcher
+from gensim.models import Doc2Vec
+from gensim.models.doc2vec import TaggedDocument
 
 # Настройка страницы
 st.set_page_config(page_title="NextPodcast — Рекомендательная система подкастов", page_icon="🎧", layout="wide")
 
 # Стили
-st.markdown("""
+st.markdown(""" 
     <style>
         .main { padding: 2rem; font-family: 'Open Sans', sans-serif; }
         h1, h2, h3, h4 { color: #4A4A4A; }
@@ -46,17 +47,26 @@ class PodcastRecommender:
         self.df = data.dropna(subset=['episodeName', 'clean_description'])
         self.df['clean_episodeName'] = self.df['episodeName'].str.lower().str.strip()
         self.df['clean_description'] = self.df['clean_description'].str.lower().str.strip()
+        
+        # Обучаем модель Doc2Vec
+        tagged_data = [TaggedDocument(words=doc.split(), tags=[str(i)]) for i, doc in enumerate(self.df['clean_episodeName'])]
+        self.model = Doc2Vec(vector_size=100, window=2, min_count=1, workers=4)
+        self.model.build_vocab(tagged_data)
+        self.model.train(tagged_data, total_examples=self.model.corpus_count, epochs=10)
 
     def get_similarity(self, s1, s2):
-        return SequenceMatcher(None, s1.lower(), s2.lower()).ratio()
+        try:
+            # Проверка на наличие ключа в модели
+            vec1 = self.model.infer_vector(s1.split())
+            vec2 = self.model.infer_vector(s2.split())
+            return self.model.dv.similarity(vec1, vec2)
+        except KeyError:
+            return 0  # Если ключа нет в модели, возвращаем нулевую схожесть
 
-    def recommend(self, query, by='title', n=5):
+    def recommend(self, query, n=5):
         sim_list = []
         for _, row in self.df.iterrows():
-            if by == 'title':
-                sim = self.get_similarity(query, row['clean_episodeName'])
-            else:
-                sim = self.get_similarity(query, row['clean_description'])
+            sim = self.get_similarity(query, row['clean_episodeName'])
 
             sim_list.append({
                 'title': row['episodeName'],
@@ -80,15 +90,7 @@ def main():
     recommender = PodcastRecommender(data)
 
     st.sidebar.header("🔧 Настройки рекомендаций")
-    search_type = st.sidebar.radio("Искать по:", ["Название эпизода", "Описание эпизода"])
-
-    if search_type == "Название эпизода":
-        query = st.sidebar.selectbox("Выберите эпизод:", options=data['episodeName'].dropna().unique())
-        by = 'title'
-    else:
-        query = st.sidebar.text_area("Введите описание подкаста:", "")
-        by = 'description'
-
+    query = st.sidebar.selectbox("Выберите эпизод:", options=data['episodeName'].dropna().unique())
     n_recs = st.sidebar.slider("Количество рекомендаций:", 1, 10, 5)
     show_recs = st.sidebar.button("🔍 Получить рекомендации")
 
@@ -112,7 +114,7 @@ def main():
     else:
         st.subheader("🎯 Рекомендованные подкасты")
         if query:
-            recommendations = recommender.recommend(query, by=by, n=n_recs)
+            recommendations = recommender.recommend(query, n=n_recs)
             for i, rec in enumerate(recommendations, 1):
                 st.markdown(f"""
                     <div class="recommendation-card">
@@ -126,7 +128,7 @@ def main():
                     </div>
                 """, unsafe_allow_html=True)
         else:
-            st.warning("Пожалуйста, введите запрос для получения рекомендаций.")
+            st.warning("Пожалуйста, выберите эпизод для получения рекомендаций.")
 
 if __name__ == "__main__":
     main()
