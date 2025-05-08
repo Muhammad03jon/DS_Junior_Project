@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
-from gensim.models import Doc2Vec
-from gensim.models.doc2vec import TaggedDocument
+from sklearn.metrics.pairwise import cosine_similarity
+from gensim.models.doc2vec import Doc2Vec, TaggedDocument
 
 # Настройка страницы
 st.set_page_config(page_title="NextPodcast — Рекомендательная система подкастов", page_icon="🎧", layout="wide")
@@ -47,26 +47,29 @@ class PodcastRecommender:
         self.df = data.dropna(subset=['episodeName', 'clean_description'])
         self.df['clean_episodeName'] = self.df['episodeName'].str.lower().str.strip()
         self.df['clean_description'] = self.df['clean_description'].str.lower().str.strip()
-        
-        # Обучаем модель Doc2Vec
-        tagged_data = [TaggedDocument(words=doc.split(), tags=[str(i)]) for i, doc in enumerate(self.df['clean_episodeName'])]
+
+        # Подготовим данные для Doc2Vec
+        self.documents = [TaggedDocument(words=desc.split(), tags=[str(i)]) for i, desc in enumerate(self.df['clean_description'])]
         self.model = Doc2Vec(vector_size=100, window=2, min_count=1, workers=4)
-        self.model.build_vocab(tagged_data)
-        self.model.train(tagged_data, total_examples=self.model.corpus_count, epochs=10)
+        self.model.build_vocab(self.documents)
+        self.model.train(self.documents, total_examples=len(self.documents), epochs=10)
 
     def get_similarity(self, s1, s2):
         try:
-            # Проверка на наличие ключа в модели
-            vec1 = self.model.infer_vector(s1.split())
-            vec2 = self.model.infer_vector(s2.split())
-            return self.model.dv.similarity(vec1, vec2)
-        except KeyError:
-            return 0  # Если ключа нет в модели, возвращаем нулевую схожесть
+            # Получаем векторное представление для описаний
+            vector1 = self.model.infer_vector(s1.split())
+            vector2 = self.model.infer_vector(s2.split())
+            
+            # Вычисляем косинусное сходство
+            return cosine_similarity([vector1], [vector2])[0][0]
+        except Exception as e:
+            st.error(f"Ошибка при вычислении похожести: {e}")
+            return 0
 
     def recommend(self, query, n=5):
         sim_list = []
         for _, row in self.df.iterrows():
-            sim = self.get_similarity(query, row['clean_episodeName'])
+            sim = self.get_similarity(query, row['clean_description'])
 
             sim_list.append({
                 'title': row['episodeName'],
@@ -78,6 +81,7 @@ class PodcastRecommender:
                 'explicit': row.get('explicit', '—'),
                 'duration': row.get('duration_min', '—')
             })
+        
         return sorted(sim_list, key=lambda x: x['similarity'], reverse=True)[:n]
 
 def main():
@@ -90,6 +94,8 @@ def main():
     recommender = PodcastRecommender(data)
 
     st.sidebar.header("🔧 Настройки рекомендаций")
+    search_type = st.sidebar.radio("Искать по:", ["Название эпизода"])
+
     query = st.sidebar.selectbox("Выберите эпизод:", options=data['episodeName'].dropna().unique())
     n_recs = st.sidebar.slider("Количество рекомендаций:", 1, 10, 5)
     show_recs = st.sidebar.button("🔍 Получить рекомендации")
@@ -128,7 +134,7 @@ def main():
                     </div>
                 """, unsafe_allow_html=True)
         else:
-            st.warning("Пожалуйста, выберите эпизод для получения рекомендаций.")
+            st.warning("Пожалуйста, введите запрос для получения рекомендаций.")
 
 if __name__ == "__main__":
     main()
