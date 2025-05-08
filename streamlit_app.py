@@ -123,18 +123,24 @@ def main():
         st.subheader("🎯 Рекомендованные подкасты")
         if query:
             recommendations = recommender.recommend(query, n=n_recs)
-            for i, rec in enumerate(recommendations, 1):
-                st.markdown(f"""
-                    <div class="recommendation-card">
-                        <h4>{i}. {rec['title']}</h4>
-                        <p><strong>Похожесть:</strong> {rec['similarity']:.2f}</p>
-                        <p><strong>Рейтинг:</strong> {rec['rating']}</p>
-                        <p><strong>Эпизодов:</strong> {rec['episodes']}</p>
-                        <p><strong>Издатель:</strong> {rec['publisher']}</p>
-                        <p><strong>Эксплицитный:</strong> {rec['explicit']}</p>
-                        <p><strong>Длительность:</strong> {rec['duration']} мин</p>
-                    </div>
-                """, unsafe_allow_html=True)
+
+            if recommendations:
+                cols = st.columns(2)  # Разбиваем рекомендации на колонки
+                for i, rec in enumerate(recommendations, 1):
+                    with cols[i % 2]:  # Разбиваем элементы на две колонки
+                        st.markdown(f"""
+                            <div class="recommendation-card">
+                                <h4>{i}. {rec['title']}</h4>
+                                <p><strong>Похожесть:</strong> {rec['similarity']:.2f}</p>
+                                <p><strong>Рейтинг:</strong> {rec['rating']}</p>
+                                <p><strong>Эпизодов:</strong> {rec['episodes']}</p>
+                                <p><strong>Издатель:</strong> {rec['publisher']}</p>
+                                <p><strong>Эксплицитный:</strong> {rec['explicit']}</p>
+                                <p><strong>Длительность:</strong> {rec['duration']} мин</p>
+                            </div>
+                        """, unsafe_allow_html=True)
+            else:
+                st.warning("Нет похожих эпизодов для данного запроса.")
         else:
             st.warning("Пожалуйста, выберите эпизод для получения рекомендаций.")
 
