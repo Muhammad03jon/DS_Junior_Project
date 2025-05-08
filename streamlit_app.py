@@ -33,7 +33,7 @@ st.markdown("""
 
 @st.cache_data
 def load_podcast_data():
-    url = "https://raw.githubusercontent.com/Muhammad03jon/DS_Junior_Project/refs/heads/master/data_for_podcasts.csv"
+    url = "https://raw.githubusercontent.com/Muhammad03jon/DS_Junior_Project/heads/master/data_for_podcasts.csv"
     try:
         df = pd.read_csv(url)
         df['episodeName'] = df['episodeName'].str.strip()
