@@ -7,3 +7,4 @@ gensim
 plotly
 matplotlib
 seaborn
+wordcloud
