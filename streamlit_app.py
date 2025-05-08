@@ -44,7 +44,7 @@ def load_podcast_data():
         return pd.DataFrame()
 
 class PodcastRecommender:
-    def __init__(self, data, model_path='https://raw.githubusercontent.com/Muhammad03jon/DS_Junior_Project/blob/master/podcast_doc2vec.model'):
+    def __init__(self, data, model_path='https://raw.githubusercontent.com/Muhammad03jon/DS_Junior_Project/refs/master/podcast_doc2vec.model'):
         self.df = data.dropna(subset=['episodeName', 'clean_description'])
         self.df['clean_episodeName'] = self.df['episodeName'].str.lower().str.strip()
         self.df['clean_description'] = self.df['clean_description'].str.lower().str.strip()
