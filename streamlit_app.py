@@ -4,7 +4,7 @@ from gensim.models import Doc2Vec
 from gensim.models.doc2vec import TaggedDocument
 
 # Настройка страницы
-st.set_page_config(page_title="NextPodcast — Рекомендательная система подкастов", page_icon="🎧", layout="wide")
+st.set_page_config(page_title="Рекомендательная система подкастов", page_icon="🎧", layout="wide")
 
 # Стили
 st.markdown(""" 
