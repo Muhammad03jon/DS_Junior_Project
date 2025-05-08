@@ -1,8 +1,6 @@
 import streamlit as st
 import pandas as pd
-from gensim.models import Doc2Vec
-from gensim.models.doc2vec import TaggedDocument
-from sklearn.metrics.pairwise import cosine_similarity
+from difflib import SequenceMatcher
 
 # Настройка страницы
 st.set_page_config(page_title="NextPodcast — Рекомендательная система подкастов", page_icon="🎧", layout="wide")
@@ -33,7 +31,7 @@ st.markdown("""
 
 @st.cache_data
 def load_podcast_data():
-    url = "https://raw.githubusercontent.com/Muhammad03jon/DS_Junior_Project/heads/master/data_for_podcasts.csv"
+    url = "https://raw.githubusercontent.com/Muhammad03jon/DS_Junior_Project/refs/heads/master/data_for_podcasts.csv"
     try:
         df = pd.read_csv(url)
         df['episodeName'] = df['episodeName'].str.strip()
@@ -44,19 +42,13 @@ def load_podcast_data():
         return pd.DataFrame()
 
 class PodcastRecommender:
-    def __init__(self, data, model_path='����'):
+    def __init__(self, data):
         self.df = data.dropna(subset=['episodeName', 'clean_description'])
         self.df['clean_episodeName'] = self.df['episodeName'].str.lower().str.strip()
         self.df['clean_description'] = self.df['clean_description'].str.lower().str.strip()
 
-        # Загрузка сохранённой модели
-        self.model = Doc2Vec.load(model_path)
-
     def get_similarity(self, s1, s2):
-        # Преобразование строк в векторы с помощью обученной модели
-        vec1 = self.model.infer_vector(s1.split())  # Получаем вектор для запроса
-        vec2 = self.model.infer_vector(s2.split())  # Получаем вектор для подкаста
-        return cosine_similarity([vec1], [vec2])[0][0]  # Рассчитываем косинусное сходство
+        return SequenceMatcher(None, s1.lower(), s2.lower()).ratio()
 
     def recommend(self, query, by='title', n=5):
         sim_list = []
