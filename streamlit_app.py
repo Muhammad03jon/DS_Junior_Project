@@ -1,11 +1,15 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-from gensim.models.doc2vec import Doc2Vec
+import string
+import nltk
+from nltk.tokenize import word_tokenize
+from nltk.corpus import stopwords
+from gensim.models.doc2vec import Doc2Vec, TaggedDocument
 from sklearn.metrics.pairwise import cosine_similarity
 
 # Загрузка данных и модели
-url = "https://raw.githubusercontent.com/username/repo-name/branch-name/path/to/file.csv"
+url = "https://raw.githubusercontent.com/Muhammad03jon/DS_Junior_Project/refs/heads/master/data_for_podcasts.csv"
 df_en = pd.read_csv(url)  # Замените на путь к вашему файлу
 model = Doc2Vec.load("podcast_doc2vec.model")
 
