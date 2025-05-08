@@ -25,7 +25,7 @@ st.markdown("""
 # Загрузка данных подкастов
 @st.cache_data
 def load_podcast_data():
-    url = "https://path/to/podcast_data.csv"  # Здесь должен быть URL с данными
+    url = "https://raw.githubusercontent.com/Muhammad03jon/DS_Junior_Project/refs/heads/master/data_for_podcasts.csv"  # Здесь должен быть URL с данными
     try:
         data = pd.read_csv(url)
         data['title'] = data['title'].str.strip()
