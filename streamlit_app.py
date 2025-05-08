@@ -67,20 +67,27 @@ class PodcastRecommender:
     def recommend(self, query, n=5):
         sim_list = []
         query_clean = query.lower().strip()
+
         for _, row in self.df.iterrows():
             # Рассчитываем схожесть с описанием эпизода
             sim = self.get_similarity(query_clean, row['clean_description'])
-            sim_list.append({
-                'title': row['episodeName'],
-                'description': row['clean_description'],
-                'similarity': sim,
-                'episodes': row.get('show.total_episodes', 0),
-                'rating': row.get('rank', '—'),
-                'publisher': row.get('show.publisher', '—'),
-                'explicit': row.get('explicit', '—'),
-                'duration': row.get('duration_min', '—')
-            })
-        return sorted(sim_list, key=lambda x: x['similarity'], reverse=True)[:n]
+            # Добавляем схожесть и информацию о подкасте в список
+            if sim > 0:  # Убираем слишком низкие значения схожести
+                sim_list.append({
+                    'title': row['episodeName'],
+                    'description': row['clean_description'],
+                    'similarity': sim,
+                    'episodes': row.get('show.total_episodes', 0),
+                    'rating': row.get('rank', '—'),
+                    'publisher': row.get('show.publisher', '—'),
+                    'explicit': row.get('explicit', '—'),
+                    'duration': row.get('duration_min', '—')
+                })
+
+        # Сортируем по схожести в убывающем порядке
+        sim_list = sorted(sim_list, key=lambda x: x['similarity'], reverse=True)
+        return sim_list[:n]  # Возвращаем только топ-n похожих эпизодов
+
 def main():
     st.title("🎧 NextPodcast — Рекомендации по подкастам")
 
