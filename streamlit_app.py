@@ -47,23 +47,21 @@ class PodcastRecommender:
         self.df = data.dropna(subset=['episodeName', 'clean_description'])
         self.df['clean_episodeName'] = self.df['episodeName'].str.lower().str.strip()
         self.df['clean_description'] = self.df['clean_description'].str.lower().str.strip()
+        
+        # Обучаем модель Doc2Vec
+        tagged_data = [TaggedDocument(words=doc.split(), tags=[str(i)]) for i, doc in enumerate(self.df['clean_episodeName'])]
+        self.model = Doc2Vec(vector_size=100, window=2, min_count=1, workers=4)
+        self.model.build_vocab(tagged_data)
+        self.model.train(tagged_data, total_examples=self.model.corpus_count, epochs=10)
 
-        # Подготовка данных для Doc2Vec
-        self.documents = [TaggedDocument(row['clean_description'].split(), [i]) for i, row in self.df.iterrows()]
-        self.model = self.train_doc2vec(self.documents)
-
-    def train_doc2vec(self, documents):
-        # Обучение модели Doc2Vec
-        model = Doc2Vec(vector_size=50, window=2, min_count=1, workers=4)
-        model.build_vocab(documents)
-        model.train(documents, total_examples=model.corpus_count, epochs=10)
-        return model
-
-    def get_similarity(self, doc1, doc2):
-        # Получение схожести между двумя документами с использованием Doc2Vec
-        vec1 = self.model.infer_vector(doc1.split())
-        vec2 = self.model.infer_vector(doc2.split())
-        return self.model.dv.similarity(vec1, vec2)
+    def get_similarity(self, s1, s2):
+        try:
+            # Проверка на наличие ключа в модели
+            vec1 = self.model.infer_vector(s1.split())
+            vec2 = self.model.infer_vector(s2.split())
+            return self.model.dv.similarity(vec1, vec2)
+        except KeyError:
+            return 0  # Если ключа нет в модели, возвращаем нулевую схожесть
 
     def recommend(self, query, by='title', n=5):
         sim_list = []
