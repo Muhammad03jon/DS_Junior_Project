@@ -6,3 +6,4 @@ nltk
 gensim
 plotly
 matplotlib
+seaborn
