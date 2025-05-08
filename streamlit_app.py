@@ -44,53 +44,41 @@ def load_podcast_data():
 
 class PodcastRecommender:
     def __init__(self, data):
-        # Убираем строки с пустыми значениями для описания эпизодов
-        self.df = data.dropna(subset=['clean_description'])
+        self.df = data.dropna(subset=['episodeName', 'clean_description'])
+        self.df['clean_episodeName'] = self.df['episodeName'].str.lower().str.strip()
         self.df['clean_description'] = self.df['clean_description'].str.lower().str.strip()
         
-        # Обучаем модель Doc2Vec на основе только описания эпизодов
-        tagged_data = [TaggedDocument(words=row['clean_description'].split(), tags=[str(i)]) for i, row in self.df.iterrows()]
+        # Обучаем модель Doc2Vec
+        tagged_data = [TaggedDocument(words=doc.split(), tags=[str(i)]) for i, doc in enumerate(self.df['clean_episodeName'])]
         self.model = Doc2Vec(vector_size=100, window=2, min_count=1, workers=4)
         self.model.build_vocab(tagged_data)
         self.model.train(tagged_data, total_examples=self.model.corpus_count, epochs=10)
 
     def get_similarity(self, s1, s2):
         try:
-            # Получаем векторные представления для двух описаний
+            # Проверка на наличие ключа в модели
             vec1 = self.model.infer_vector(s1.split())
             vec2 = self.model.infer_vector(s2.split())
-            # Рассчитываем схожесть между этими векторами
             return self.model.dv.similarity(vec1, vec2)
         except KeyError:
             return 0  # Если ключа нет в модели, возвращаем нулевую схожесть
 
     def recommend(self, query, n=5):
         sim_list = []
-        query_clean = query.lower().strip()
-
         for _, row in self.df.iterrows():
-            # Рассчитываем схожесть с описанием эпизода
-            sim = self.get_similarity(query_clean, row['clean_description'])
-            
-            # Логируем значение схожести для диагностики
-            st.write(f"Схожесть для '{query_clean}' с эпизодом '{row['episodeName']}': {sim:.2f}")
-            
-            # Добавляем схожесть и информацию о подкасте в список
-            if sim > 0.1:  # Порог схожести для более релевантных рекомендаций
-                sim_list.append({
-                    'title': row['episodeName'],
-                    'description': row['clean_description'],
-                    'similarity': sim,
-                    'episodes': row.get('show.total_episodes', 0),
-                    'rating': row.get('rank', '—'),
-                    'publisher': row.get('show.publisher', '—'),
-                    'explicit': row.get('explicit', '—'),
-                    'duration': row.get('duration_min', '—')
-                })
+            sim = self.get_similarity(query, row['clean_episodeName'])
 
-        # Сортируем по схожести в убывающем порядке
-        sim_list = sorted(sim_list, key=lambda x: x['similarity'], reverse=True)
-        return sim_list[:n]  # Возвращаем только топ-n похожих эпизодов
+            sim_list.append({
+                'title': row['episodeName'],
+                'description': row['clean_description'],
+                'similarity': sim,
+                'episodes': row.get('show.total_episodes', 0),
+                'rating': row.get('rank', '—'),
+                'publisher': row.get('show.publisher', '—'),
+                'explicit': row.get('explicit', '—'),
+                'duration': row.get('duration_min', '—')
+            })
+        return sorted(sim_list, key=lambda x: x['similarity'], reverse=True)[:n]
 
 def main():
     st.title("🎧 NextPodcast — Рекомендации по подкастам")
@@ -127,24 +115,18 @@ def main():
         st.subheader("🎯 Рекомендованные подкасты")
         if query:
             recommendations = recommender.recommend(query, n=n_recs)
-
-            if recommendations:
-                cols = st.columns(2)  # Разбиваем рекомендации на колонки
-                for i, rec in enumerate(recommendations, 1):
-                    with cols[i % 2]:  # Разбиваем элементы на две колонки
-                        st.markdown(f"""
-                            <div class="recommendation-card">
-                                <h4>{i}. {rec['title']}</h4>
-                                <p><strong>Похожесть:</strong> {rec['similarity']:.2f}</p>
-                                <p><strong>Рейтинг:</strong> {rec['rating']}</p>
-                                <p><strong>Эпизодов:</strong> {rec['episodes']}</p>
-                                <p><strong>Издатель:</strong> {rec['publisher']}</p>
-                                <p><strong>Эксплицитный:</strong> {rec['explicit']}</p>
-                                <p><strong>Длительность:</strong> {rec['duration']} мин</p>
-                            </div>
-                        """, unsafe_allow_html=True)
-            else:
-                st.warning("Нет похожих эпизодов для данного запроса.")
+            for i, rec in enumerate(recommendations, 1):
+                st.markdown(f"""
+                    <div class="recommendation-card">
+                        <h4>{i}. {rec['title']}</h4>
+                        <p><strong>Похожесть:</strong> {rec['similarity']:.2f}</p>
+                        <p><strong>Рейтинг:</strong> {rec['rating']}</p>
+                        <p><strong>Эпизодов:</strong> {rec['episodes']}</p>
+                        <p><strong>Издатель:</strong> {rec['publisher']}</p>
+                        <p><strong>Эксплицитный:</strong> {rec['explicit']}</p>
+                        <p><strong>Длительность:</strong> {rec['duration']} мин</p>
+                    </div>
+                """, unsafe_allow_html=True)
         else:
             st.warning("Пожалуйста, выберите эпизод для получения рекомендаций.")
 
