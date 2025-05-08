@@ -35,8 +35,8 @@ def load_podcast_data():
     url = "https://raw.githubusercontent.com/Muhammad03jon/DS_Junior_Project/refs/heads/master/data_for_podcasts.csv"
     try:
         df = pd.read_csv(url)
-        df['episodeName'] = df['episodeName'].str.strip()
-        df['clean_description'] = df['clean_description'].str.strip()
+        df['episodeName'] = df['episodeName'].astype(str).str.strip()
+        df['clean_description'] = df['clean_description'].astype(str).str.strip()
         return df
     except Exception as e:
         st.error(f"Ошибка загрузки данных: {e}")
@@ -48,47 +48,41 @@ class PodcastRecommender:
         self.df['clean_episodeName'] = self.df['episodeName'].str.lower().str.strip()
         self.df['clean_description'] = self.df['clean_description'].str.lower().str.strip()
 
-        # Обучение Doc2Vec по описаниям
-        tagged_data = [TaggedDocument(words=desc.split(), tags=[str(i)]) for i, desc in enumerate(self.df['clean_description'])]
+        tagged_data = [
+            TaggedDocument(words=doc.split(), tags=[str(i)])
+            for i, doc in enumerate(self.df['clean_description'])
+        ]
         self.model = Doc2Vec(vector_size=100, window=2, min_count=1, workers=4)
         self.model.build_vocab(tagged_data)
         self.model.train(tagged_data, total_examples=self.model.corpus_count, epochs=10)
 
-    def get_similarity(self, desc1, desc2):
+    def recommend(self, episode_title, n=5):
         try:
-            vec1 = self.model.infer_vector(desc1.split())
-            vec2 = self.model.infer_vector(desc2.split())
-            return self.model.dv.cosine_similarities(vec1, [vec2])[0]
-        except KeyError:
-            return 0
-
-    def recommend(self, query_episode_title, n=5):
-        # Найдём описание по названию эпизода
-        query_row = self.df[self.df['episodeName'] == query_episode_title]
-        if query_row.empty:
+            query_desc = self.df[self.df['episodeName'] == episode_title]['clean_description'].values[0]
+        except IndexError:
             return []
 
-        query_desc = query_row.iloc[0]['clean_description']
+        inferred_vector = self.model.infer_vector(query_desc.split())
+        sims = self.model.dv.most_similar([inferred_vector], topn=n + 1)
 
-        sim_list = []
-        for _, row in self.df.iterrows():
-            if row['episodeName'] == query_episode_title:
-                continue  # исключаем сам эпизод
-
-            sim = self.get_similarity(query_desc, row['clean_description'])
-
-            sim_list.append({
+        results = []
+        for tag, sim_score in sims:
+            index = int(tag)
+            row = self.df.iloc[index]
+            if row['episodeName'] == episode_title:
+                continue  # не включаем сам эпизод
+            results.append({
                 'title': row['episodeName'],
                 'description': row['clean_description'],
-                'similarity': sim,
                 'episodes': row.get('show.total_episodes', 0),
                 'rating': row.get('rank', '—'),
                 'publisher': row.get('show.publisher', '—'),
                 'explicit': row.get('explicit', '—'),
                 'duration': row.get('duration_min', '—')
             })
-
-        return sorted(sim_list, key=lambda x: x['similarity'], reverse=True)[:n]
+            if len(results) >= n:
+                break
+        return results
 
 def main():
     st.title("🎧 NextPodcast — Рекомендации по подкастам")
@@ -129,7 +123,6 @@ def main():
                 st.markdown(f"""
                     <div class="recommendation-card">
                         <h4>{i}. {rec['title']}</h4>
-                        <p><strong>Похожесть:</strong> {rec['similarity']:.2f}</p>
                         <p><strong>Рейтинг:</strong> {rec['rating']}</p>
                         <p><strong>Эпизодов:</strong> {rec['episodes']}</p>
                         <p><strong>Издатель:</strong> {rec['publisher']}</p>
