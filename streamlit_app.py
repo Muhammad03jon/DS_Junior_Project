@@ -36,7 +36,7 @@ def load_data_and_model():
         data = pd.read_csv(url)
         data['episodeName'] = data['episodeName'].astype(str).str.strip()
         data['clean_description'] = data['clean_description'].astype(str).str.strip()
-        model = Doc2Vec.load("model/d2v_podcast.model")  # Укажи путь к своей модели
+        model = Doc2Vec.load("https://github.com/Muhammad03jon/DS_Junior_Project/blob/master/podcast_doc2vec.model")  # Укажи путь к своей модели
         return data, model
     except Exception as e:
         st.error(f"Ошибка загрузки данных или модели: {e}")
