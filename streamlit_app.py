@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
-from difflib import SequenceMatcher
+from gensim.models import Doc2Vec
+from gensim.models.doc2vec import TaggedDocument
 
 # Настройка страницы
 st.set_page_config(page_title="NextPodcast — Рекомендательная система подкастов", page_icon="🎧", layout="wide")
@@ -46,9 +47,18 @@ class PodcastRecommender:
         self.df = data.dropna(subset=['episodeName', 'clean_description'])
         self.df['clean_episodeName'] = self.df['episodeName'].str.lower().str.strip()
         self.df['clean_description'] = self.df['clean_description'].str.lower().str.strip()
+        
+        # Подготовка данных для обучения модели Doc2Vec
+        self.documents = [TaggedDocument(row['clean_episodeName'], [i]) for i, row in self.df.iterrows()]
+        self.model = Doc2Vec(vector_size=100, window=2, min_count=1, workers=4)
+        self.model.build_vocab(self.documents)
+        self.model.train(self.documents, total_examples=self.model.corpus_count, epochs=10)
 
     def get_similarity(self, s1, s2):
-        return SequenceMatcher(None, s1.lower(), s2.lower()).ratio()
+        # Используем модель Doc2Vec для получения векторных представлений текста
+        vec1 = self.model.infer_vector(s1.split())
+        vec2 = self.model.infer_vector(s2.split())
+        return self.model.dv.cosine(vec1, vec2)
 
     def recommend(self, query, by='title', n=5):
         sim_list = []
