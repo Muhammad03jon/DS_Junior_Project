@@ -71,8 +71,12 @@ class PodcastRecommender:
         for _, row in self.df.iterrows():
             # Рассчитываем схожесть с описанием эпизода
             sim = self.get_similarity(query_clean, row['clean_description'])
+            
+            # Логируем значение схожести для диагностики
+            st.write(f"Схожесть для '{query_clean}' с эпизодом '{row['episodeName']}': {sim:.2f}")
+            
             # Добавляем схожесть и информацию о подкасте в список
-            if sim > 0:  # Убираем слишком низкие значения схожести
+            if sim > 0.1:  # Порог схожести для более релевантных рекомендаций
                 sim_list.append({
                     'title': row['episodeName'],
                     'description': row['clean_description'],
