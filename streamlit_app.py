@@ -47,15 +47,26 @@ class PodcastRecommender:
         self.df = data.dropna(subset=['episodeName', 'clean_description'])
         self.df['clean_episodeName'] = self.df['episodeName'].str.lower().str.strip()
         self.df['clean_description'] = self.df['clean_description'].str.lower().str.strip()
-        
-        # Подготовка данных для обучения модели Doc2Vec
-        self.documents = [TaggedDocument(row['clean_episodeName'], [i]) for i, row in self.df.iterrows()]
-        self.model = Doc2Vec(vector_size=100, window=2, min_count=1, workers=4)
-        self.model.build_vocab(self.documents)
-        self.model.train(self.documents, total_examples=self.model.corpus_count, epochs=10)
+
+        # Train the Doc2Vec model on episode names and descriptions
+        self.model = self.train_doc2vec_model()
+
+    def train_doc2vec_model(self):
+        documents = []
+        for _, row in self.df.iterrows():
+            # Create TaggedDocument for episode names and descriptions
+            episode_name_doc = TaggedDocument(words=row['clean_episodeName'].split(), tags=[f"episode_{_}"])
+            description_doc = TaggedDocument(words=row['clean_description'].split(), tags=[f"description_{_}"])
+            documents.extend([episode_name_doc, description_doc])
+
+        # Train the model
+        model = Doc2Vec(vector_size=100, window=5, min_count=1, workers=4, epochs=10)
+        model.build_vocab(documents)
+        model.train(documents, total_examples=model.corpus_count, epochs=model.epochs)
+        return model
 
     def get_similarity(self, s1, s2):
-        # Используем модель Doc2Vec для получения векторных представлений текста
+        # Convert strings to vectors using the trained model
         vec1 = self.model.infer_vector(s1.split())
         vec2 = self.model.infer_vector(s2.split())
         return self.model.dv.cosine(vec1, vec2)
