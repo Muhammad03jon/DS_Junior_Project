@@ -69,7 +69,7 @@ class PodcastRecommender:
         # Convert strings to vectors using the trained model
         vec1 = self.model.infer_vector(s1.split())  # Infer vector for query
         vec2 = self.model.infer_vector(s2.split())  # Infer vector for the podcast
-        return self.model.dv.cosine(vec1, vec2)  # Calculate cosine similarity
+        return cosine_similarity([vec1], [vec2])[0][0]  # Calculate cosine similarity
 
     def recommend(self, query, by='title', n=5):
         sim_list = []
