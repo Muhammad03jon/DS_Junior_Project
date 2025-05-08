@@ -5,7 +5,8 @@ from gensim.models.doc2vec import Doc2Vec
 from sklearn.metrics.pairwise import cosine_similarity
 
 # Загрузка данных и модели
-df_en = pd.read_csv("your_podcast_data.csv")  # Замените на путь к вашему файлу
+url = "https://raw.githubusercontent.com/username/repo-name/branch-name/path/to/file.csv"
+df_en = pd.read_csv(url)  # Замените на путь к вашему файлу
 model = Doc2Vec.load("podcast_doc2vec.model")
 
 # Функции
