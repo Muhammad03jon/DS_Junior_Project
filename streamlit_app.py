@@ -85,7 +85,7 @@ class PodcastRecommender:
         return results
 
 def main():
-    st.title("🎧 NextPodcast — Рекомендации по подкастам")
+    st.title("Рекомендательная система подкастов")
 
     data = load_podcast_data()
     if data.empty:
