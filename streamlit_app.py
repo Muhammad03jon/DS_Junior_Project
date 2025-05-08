@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 from gensim.models import Doc2Vec
 from gensim.models.doc2vec import TaggedDocument
-from scipy.spatial.distance import cosine
 
 # Настройка страницы
 st.set_page_config(page_title="NextPodcast — Рекомендательная система подкастов", page_icon="🎧", layout="wide")
@@ -48,31 +47,36 @@ class PodcastRecommender:
         self.df = data.dropna(subset=['episodeName', 'clean_description'])
         self.df['clean_episodeName'] = self.df['episodeName'].str.lower().str.strip()
         self.df['clean_description'] = self.df['clean_description'].str.lower().str.strip()
-        
-        # Обучаем модель Doc2Vec
-        tagged_data = [TaggedDocument(words=doc.split(), tags=[str(i)]) for i, doc in enumerate(self.df['clean_episodeName'])]
+
+        # Обучение Doc2Vec по описаниям
+        tagged_data = [TaggedDocument(words=desc.split(), tags=[str(i)]) for i, desc in enumerate(self.df['clean_description'])]
         self.model = Doc2Vec(vector_size=100, window=2, min_count=1, workers=4)
         self.model.build_vocab(tagged_data)
         self.model.train(tagged_data, total_examples=self.model.corpus_count, epochs=10)
 
-    def get_similarity(self, s1, s2):
+    def get_similarity(self, desc1, desc2):
         try:
-            # Получаем векторные представления
-            vec1 = self.model.infer_vector(s1.split())
-            vec2 = self.model.infer_vector(s2.split())
-            
-            # Вычисляем косинусное сходство
-            sim = 1 - cosine(vec1, vec2)
-            return sim
+            vec1 = self.model.infer_vector(desc1.split())
+            vec2 = self.model.infer_vector(desc2.split())
+            return self.model.dv.cosine_similarities(vec1, [vec2])[0]
         except KeyError:
-            return 0  # Если ключа нет в модели, возвращаем нулевую схожесть
+            return 0
 
-    def recommend(self, query, n=5):
+    def recommend(self, query_episode_title, n=5):
+        # Найдём описание по названию эпизода
+        query_row = self.df[self.df['episodeName'] == query_episode_title]
+        if query_row.empty:
+            return []
+
+        query_desc = query_row.iloc[0]['clean_description']
+
         sim_list = []
         for _, row in self.df.iterrows():
-            sim = self.get_similarity(query, row['clean_episodeName'])
-            
-            # Добавляем информацию о подкастах
+            if row['episodeName'] == query_episode_title:
+                continue  # исключаем сам эпизод
+
+            sim = self.get_similarity(query_desc, row['clean_description'])
+
             sim_list.append({
                 'title': row['episodeName'],
                 'description': row['clean_description'],
@@ -83,8 +87,7 @@ class PodcastRecommender:
                 'explicit': row.get('explicit', '—'),
                 'duration': row.get('duration_min', '—')
             })
-        
-        # Сортируем по схожести и выбираем топ-n
+
         return sorted(sim_list, key=lambda x: x['similarity'], reverse=True)[:n]
 
 def main():
