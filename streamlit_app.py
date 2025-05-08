@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 from gensim.models import Doc2Vec
 from gensim.models.doc2vec import TaggedDocument
+from sklearn.metrics.pairwise import cosine_similarity
 
 # Настройка страницы
 st.set_page_config(page_title="NextPodcast — Рекомендательная система подкастов", page_icon="🎧", layout="wide")
@@ -43,33 +44,19 @@ def load_podcast_data():
         return pd.DataFrame()
 
 class PodcastRecommender:
-    def __init__(self, data):
+    def __init__(self, data, model_path='podcast_doc2vec.model'):
         self.df = data.dropna(subset=['episodeName', 'clean_description'])
         self.df['clean_episodeName'] = self.df['episodeName'].str.lower().str.strip()
         self.df['clean_description'] = self.df['clean_description'].str.lower().str.strip()
 
-        # Train the Doc2Vec model on episode names and descriptions
-        self.model = self.train_doc2vec_model()
-
-    def train_doc2vec_model(self):
-        documents = []
-        for idx, row in self.df.iterrows():
-            # Create TaggedDocument for episode names and descriptions
-            episode_name_doc = TaggedDocument(words=row['clean_episodeName'].split(), tags=[f"episode_{idx}"])
-            description_doc = TaggedDocument(words=row['clean_description'].split(), tags=[f"description_{idx}"])
-            documents.extend([episode_name_doc, description_doc])
-
-        # Train the model
-        model = Doc2Vec(vector_size=100, window=5, min_count=1, workers=4, epochs=10)
-        model.build_vocab(documents)
-        model.train(documents, total_examples=model.corpus_count, epochs=model.epochs)
-        return model
+        # Загрузка сохранённой модели
+        self.model = Doc2Vec.load(model_path)
 
     def get_similarity(self, s1, s2):
-        # Convert strings to vectors using the trained model
-        vec1 = self.model.infer_vector(s1.split())  # Infer vector for query
-        vec2 = self.model.infer_vector(s2.split())  # Infer vector for the podcast
-        return cosine_similarity([vec1], [vec2])[0][0]  # Calculate cosine similarity
+        # Преобразование строк в векторы с помощью обученной модели
+        vec1 = self.model.infer_vector(s1.split())  # Получаем вектор для запроса
+        vec2 = self.model.infer_vector(s2.split())  # Получаем вектор для подкаста
+        return cosine_similarity([vec1], [vec2])[0][0]  # Рассчитываем косинусное сходство
 
     def recommend(self, query, by='title', n=5):
         sim_list = []
