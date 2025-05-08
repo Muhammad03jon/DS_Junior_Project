@@ -1,138 +1,116 @@
 import streamlit as st
 import pandas as pd
-from difflib import SequenceMatcher
-import plotly.express as px
-import matplotlib.pyplot as plt
-import seaborn as sns
-from wordcloud import WordCloud, STOPWORDS
+import numpy as np
+import string
+import nltk
+from nltk.tokenize import word_tokenize
+from nltk.corpus import stopwords
+from gensim.models.doc2vec import Doc2Vec, TaggedDocument
+from sklearn.metrics.pairwise import cosine_similarity
 
 # Настройка страницы
 st.set_page_config(page_title="NextPodcast — Рекомендательная система подкастов", page_icon="🎧", layout="wide")
 
-# Стили
-st.markdown("""
-    <style>
-        .main { padding: 2rem; font-family: 'Open Sans', sans-serif; }
-        h1, h2, h3, h4 { color: #4A4A4A; }
-        .stButton>button {
-            width: 100%; background: linear-gradient(90deg, #6C63FF, #A084DC);
-            color: white; border: none; padding: 0.6rem; border-radius: 0.5rem;
-            font-weight: bold; transition: 0.3s ease;
-        }
-        .stButton>button:hover {
-            background: linear-gradient(90deg, #4C47E3, #6F5BB5); transform: scale(1.05);
-        }
-        .recommendation-card {
-            padding: 1rem; border-radius: 1rem; background: #F4F4FB;
-            margin: 1rem 0; border-left: 5px solid #6C63FF;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.05); transition: 0.3s ease;
-        }
-        .recommendation-card:hover {
-            transform: translateY(-4px); box-shadow: 0 6px 12px rgba(0,0,0,0.1);
-        }
-    </style>
-""", unsafe_allow_html=True)
+# Загрузка ресурсов
+nltk.download('punkt')
+nltk.download('stopwords')
 
+# Предобработка текста
+stop_words = set(stopwords.words('english'))
+punctuation = set(string.punctuation)
+
+def preprocess_text(text):
+    tokens = word_tokenize(str(text).lower())
+    filtered = [word for word in tokens if word.isalpha() and word not in stop_words and word not in punctuation]
+    return filtered
+
+# Загрузка данных
 @st.cache_data
-def load_podcast_data():
+def load_data():
     url = "https://raw.githubusercontent.com/Muhammad03jon/DS_Junior_Project/refs/heads/master/data_for_podcasts.csv"
+    df = pd.read_csv(url)
+    df['clean_description'] = df['clean_description'].fillna('').astype(str)
+    df['episodeName'] = df['episodeName'].fillna('').astype(str)
+    return df
+
+df = load_data()
+
+# Подготовка данных для Doc2Vec
+@st.cache_resource
+def train_doc2vec_model(df):
+    tagged_data = [
+        TaggedDocument(words=preprocess_text(desc), tags=[str(i)])
+        for i, desc in enumerate(df['clean_description'])
+    ]
+    model = Doc2Vec(
+        vector_size=150,
+        window=5,
+        min_count=2,
+        workers=4,
+        epochs=40,
+        dm=1,
+        hs=0,
+        negative=10
+    )
+    model.build_vocab(tagged_data)
+    model.train(tagged_data, total_examples=model.corpus_count, epochs=model.epochs)
+    return model
+
+model = train_doc2vec_model(df)
+
+# Вычисляем векторы всех описаний заранее
+@st.cache_data
+def compute_all_vectors():
+    return np.array([model.infer_vector(preprocess_text(desc)) for desc in df['clean_description']])
+
+all_vectors = compute_all_vectors()
+
+# Рекомендательная функция
+def recommend_similar_podcasts(episode_name, top_n=10):
     try:
-        df = pd.read_csv(url)
-        df['episodeName'] = df['episodeName'].str.strip()
-        df['clean_description'] = df['clean_description'].str.strip()
-        return df
-    except Exception as e:
-        st.error(f"Ошибка загрузки данных: {e}")
+        idx = df[df['episodeName'] == episode_name].index[0]
+    except IndexError:
         return pd.DataFrame()
+    
+    target_vector = all_vectors[idx].reshape(1, -1)
+    similarity_scores = cosine_similarity(target_vector, all_vectors)[0]
+    similar_indices = similarity_scores.argsort()[-top_n-1:-1][::-1]
 
-class PodcastRecommender:
-    def __init__(self, data):
-        self.df = data.dropna(subset=['episodeName', 'clean_description'])
-        self.df['clean_episodeName'] = self.df['episodeName'].str.lower().str.strip()
-        self.df['clean_description'] = self.df['clean_description'].str.lower().str.strip()
+    results = df.iloc[similar_indices][[
+        'episodeName', 'show.name', 'show.publisher', 'show.total_episodes',
+        'explicit', 'duration_min'
+    ]].copy()
+    results['similarity'] = similarity_scores[similar_indices].round(3)
+    return results.reset_index(drop=True)
 
-    def get_similarity(self, s1, s2):
-        return SequenceMatcher(None, s1.lower(), s2.lower()).ratio()
+# Интерфейс
+st.title("🎧 NextPodcast — Рекомендательная система на основе Doc2Vec")
 
-    def recommend(self, query, by='title', n=5):
-        sim_list = []
-        for _, row in self.df.iterrows():
-            if by == 'title':
-                sim = self.get_similarity(query, row['clean_episodeName'])
-            else:
-                sim = self.get_similarity(query, row['clean_description'])
+selected_episode = st.selectbox("Выберите подкаст для рекомендации:", df['episodeName'].unique())
 
-            sim_list.append({
-                'title': row['episodeName'],
-                'description': row['clean_description'],
-                'similarity': sim,
-                'genres': row.get('show.name', '—'),
-                'episodes': row.get('show.total_episodes', 0),
-                'rating': row.get('rank', '—'),
-                'publisher': row.get('show.publisher', '—'),
-                'explicit': row.get('explicit', '—'),
-                'duration': row.get('duration_min', '—')
-            })
-        return sorted(sim_list, key=lambda x: x['similarity'], reverse=True)[:n]
-
-def main():
-    st.title("🎧 NextPodcast — Рекомендации по подкастам")
-
-    data = load_podcast_data()
-    if data.empty:
-        return
-
-    recommender = PodcastRecommender(data)
-
-    st.sidebar.header("🔧 Настройки рекомендаций")
-    search_type = st.sidebar.radio("Искать по:", ["Название эпизода", "Описание эпизода"])
-
-    if search_type == "Название эпизода":
-        query = st.sidebar.selectbox("Выберите эпизод:", options=data['episodeName'].dropna().unique())
-        by = 'title'
+if st.button("Показать рекомендации"):
+    recommendations = recommend_similar_podcasts(selected_episode, top_n=10)
+    if recommendations.empty:
+        st.warning("Подкаст не найден или отсутствует описание.")
     else:
-        query = st.sidebar.text_area("Введите описание подкаста:", "")
-        by = 'description'
+        st.subheader(f"🔍 Похожие на: **{selected_episode}**")
+        for i, row in recommendations.iterrows():
+            with st.container():
+                if st.button(f"{i+1}. {row['episodeName']']}", key=f"rec_btn_{i}"):
+                    st.markdown(f"""
+                        <div style="padding: 1rem; border-left: 5px solid #6C63FF; background: #f0f0fa; border-radius: 10px; margin: 1rem 0;">
+                            <h4>{row['episodeName']}</h4>
+                            <p><strong>Шоу:</strong> {row['show.name']}</p>
+                            <p><strong>Издатель:</strong> {row['show.publisher']}</p>
+                            <p><strong>Эпизодов:</strong> {row['show.total_episodes']}</p>
+                            <p><strong>Длительность:</strong> {row['duration_min']} мин</p>
+                            <p><strong>Explicit:</strong> {row['explicit']}</p>
+                            <p><strong>Похожесть:</strong> {row['similarity']}</p>
+                        </div>
+                    """, unsafe_allow_html=True)
 
-    n_recs = st.sidebar.slider("Количество рекомендаций:", 1, 10, 5)
-    show_recs = st.sidebar.button("🔍 Получить рекомендации")
-
-    if not show_recs:
-        st.subheader("🔥 Топ-10 популярных подкастов")
-        top10 = data.nlargest(10, 'rank')
-        cols = st.columns(2)
-        for i, (_, pod) in enumerate(top10.iterrows()):
-            with cols[i % 2]:
-                st.markdown(f"""
-                    <div class="recommendation-card">
-                        <h4>{pod['episodeName']}</h4>
-                        <p><strong>Рейтинг:</strong> {pod['rank']}</p>
-                        <p><strong>Издатель:</strong> {pod.get('show.publisher', '—')}</p>
-                        <p><strong>Эпизодов:</strong> {pod.get('show.total_episodes', '—')}</p>
-                        <p><strong>Длительность:</strong> {pod.get('duration_min', '—')} мин</p>
-                        <p><strong>Эксплицитный:</strong> {pod.get('explicit', '—')}</p>
-                    </div>
-                """, unsafe_allow_html=True)
-
-    else:
-        st.subheader("🎯 Рекомендованные подкасты")
-        if query:
-            recommendations = recommender.recommend(query, by=by, n=n_recs)
-            for i, rec in enumerate(recommendations, 1):
-                st.markdown(f"""
-                    <div class="recommendation-card">
-                        <h4>{i}. {rec['title']}</h4>
-                        <p><strong>Похожесть:</strong> {rec['similarity']:.2f}</p>
-                        <p><strong>Жанры:</strong> {rec['genres']}</p>
-                        <p><strong>Рейтинг:</strong> {rec['rating']}</p>
-                        <p><strong>Эпизодов:</strong> {rec['episodes']}</p>
-                        <p><strong>Издатель:</strong> {rec['publisher']}</p>
-                        <p><strong>Эксплицитный:</strong> {rec['explicit']}</p>
-                        <p><strong>Длительность:</strong> {rec['duration']} мин</p>
-                    </div>
-                """, unsafe_allow_html=True)
-        else:
-            st.warning("Пожалуйста, введите запрос для получения рекомендаций.")
-
-if __name__ == "__main__":
-    main()
+                    # Показываем ещё похожие на этот подкаст
+                    st.markdown(f"### 🎯 Похожие на «{row['episodeName']}»")
+                    more_recs = recommend_similar_podcasts(row['episodeName'], top_n=5)
+                    for j, sim in more_recs.iterrows():
+                        st.markdown(f"- **{sim['episodeName']}** (похожесть: {sim['similarity']})")
