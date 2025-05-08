@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 from gensim.models import Doc2Vec
 from gensim.models.doc2vec import TaggedDocument
+from scipy.spatial.distance import cosine
 
 # Настройка страницы
 st.set_page_config(page_title="NextPodcast — Рекомендательная система подкастов", page_icon="🎧", layout="wide")
@@ -56,10 +57,13 @@ class PodcastRecommender:
 
     def get_similarity(self, s1, s2):
         try:
-            # Проверка на наличие ключа в модели
+            # Получаем векторные представления
             vec1 = self.model.infer_vector(s1.split())
             vec2 = self.model.infer_vector(s2.split())
-            return self.model.dv.similarity(vec1, vec2)
+            
+            # Вычисляем косинусное сходство
+            sim = 1 - cosine(vec1, vec2)
+            return sim
         except KeyError:
             return 0  # Если ключа нет в модели, возвращаем нулевую схожесть
 
@@ -67,7 +71,8 @@ class PodcastRecommender:
         sim_list = []
         for _, row in self.df.iterrows():
             sim = self.get_similarity(query, row['clean_episodeName'])
-
+            
+            # Добавляем информацию о подкастах
             sim_list.append({
                 'title': row['episodeName'],
                 'description': row['clean_description'],
@@ -78,6 +83,8 @@ class PodcastRecommender:
                 'explicit': row.get('explicit', '—'),
                 'duration': row.get('duration_min', '—')
             })
+        
+        # Сортируем по схожести и выбираем топ-n
         return sorted(sim_list, key=lambda x: x['similarity'], reverse=True)[:n]
 
 def main():
