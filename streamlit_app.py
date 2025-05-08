@@ -62,7 +62,6 @@ class PodcastRecommender:
                 'title': row['episodeName'],
                 'description': row['clean_description'],
                 'similarity': sim,
-                'genres': row.get('show.name', '—'),
                 'episodes': row.get('show.total_episodes', 0),
                 'rating': row.get('rank', '—'),
                 'publisher': row.get('show.publisher', '—'),
@@ -119,7 +118,6 @@ def main():
                     <div class="recommendation-card">
                         <h4>{i}. {rec['title']}</h4>
                         <p><strong>Похожесть:</strong> {rec['similarity']:.2f}</p>
-                        <p><strong>Жанры:</strong> {rec['genres']}</p>
                         <p><strong>Рейтинг:</strong> {rec['rating']}</p>
                         <p><strong>Эпизодов:</strong> {rec['episodes']}</p>
                         <p><strong>Издатель:</strong> {rec['publisher']}</p>
