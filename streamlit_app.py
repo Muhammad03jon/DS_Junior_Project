@@ -28,9 +28,8 @@ def load_podcast_data():
     url = "https://raw.githubusercontent.com/Muhammad03jon/DS_Junior_Project/refs/heads/master/data_for_podcasts.csv"  # Здесь должен быть URL с данными
     try:
         data = pd.read_csv(url)
-        data['title'] = data['title'].str.strip()
-        data['genres'] = data['genres'].str.strip()
-        data['description'] = data['description'].str.strip()
+        data['episodeName'] = data['episodeName'].str.strip()  # Название эпизодов подкастов
+        data['clean_description'] = data['clean_description'].str.strip()  # Описание эпизодов
         return data
     except Exception as e:
         st.error(f"Ошибка загрузки данных: {e}")
@@ -39,9 +38,9 @@ def load_podcast_data():
 class PodcastRecommender:
     def __init__(self, data):
         self.df = pd.DataFrame(data)
-        self.df = self.df.dropna(subset=['title', 'description', 'genres'])
-        self.df['clean_title'] = self.df['title'].str.lower().str.strip()
-        self.df['clean_description'] = self.df['description'].str.lower().str.strip()
+        self.df = self.df.dropna(subset=['episodeName', 'clean_description'])
+        self.df['clean_episodeName'] = self.df['episodeName'].str.lower().str.strip()
+        self.df['clean_description'] = self.df['clean_description'].str.lower().str.strip()
 
     def get_title_similarity(self, title1, title2):
         return SequenceMatcher(None, title1.lower(), title2.lower()).ratio()
@@ -53,7 +52,7 @@ class PodcastRecommender:
         similarities = []
         if by == 'title':
             for idx, row in self.df.iterrows():
-                similarity = self.get_title_similarity(query, row['clean_title'])
+                similarity = self.get_title_similarity(query, row['clean_episodeName'])
                 similarities.append(self._create_recommendation_dict(row, similarity))
         elif by == 'description':
             for idx, row in self.df.iterrows():
@@ -64,13 +63,13 @@ class PodcastRecommender:
 
     def _create_recommendation_dict(self, row, similarity):
         return {
-            'podcastID': row['id'],
-            'title': row['title'],
-            'description': row['description'],
+            'podcastID': row['rank'],  # Используем rank вместо ID
+            'title': row['episodeName'],  # Название эпизода
+            'description': row['description'],  # Описание
             'similarity': similarity,
-            'genres': row['genres'],
-            'episodes_count': row.get('episodes_count', 0),
-            'average_rating': row.get('average_rating', 'N/A')
+            'genres': row.get('show.name', 'Не указано'),  # Жанры
+            'episodes_count': row.get('show.total_episodes', 0),  # Количество эпизодов
+            'average_rating': row.get('rank', 'N/A')  # Используем rank как рейтинг
         }
 
 def main():
@@ -92,19 +91,19 @@ def main():
     st.sidebar.header("Настройки рекомендаций")
 
     # Показываем топ 50 популярных подкастов
-    top_podcasts = data.nlargest(50, 'average_rating')  # или любой другой критерий, например, по количеству эпизодов
+    top_podcasts = data.nlargest(50, 'rank')  # Или по другому столбцу, например, по количеству эпизодов
     st.subheader("Топ 50 популярных подкастов")
     for i, podcast in top_podcasts.iterrows():
-        st.markdown(f"**{podcast['title']}** - {podcast['average_rating']} ⭐")
+        st.markdown(f"**{podcast['episodeName']}** - Рейтинг: {podcast['rank']} ⭐")
 
     # Получаем рекомендацию
-    search_type = st.sidebar.radio("Искать по:", ["Название подкаста", "Описание подкаста"])
+    search_type = st.sidebar.radio("Искать по:", ["Название эпизода", "Описание эпизода"])
 
-    if search_type == "Название подкаста":
-        query = st.sidebar.selectbox("Выберите подкаст:", options=data['title'].unique())
+    if search_type == "Название эпизода":
+        query = st.sidebar.selectbox("Выберите эпизод:", options=data['episodeName'].unique())
         by = 'title'
     else:
-        query = st.sidebar.text_input("Введите описание подкаста:", "")
+        query = st.sidebar.text_input("Введите описание эпизода:", "")
         by = 'description'
 
     n_recommendations = st.sidebar.slider("Количество рекомендаций:", min_value=1, max_value=10, value=5)
