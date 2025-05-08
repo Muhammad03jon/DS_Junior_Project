@@ -96,7 +96,7 @@ if st.button("Показать рекомендации"):
         st.subheader(f"🔍 Похожие на: **{selected_episode}**")
         for i, row in recommendations.iterrows():
             with st.container():
-                if st.button(f"{i+1}. {row['episodeName']']}", key=f"rec_btn_{i}"):
+                if st.button(f"{i+1}. {row['episodeName']}", key=f"rec_btn_{i}"):
                     st.markdown(f"""
                         <div style="padding: 1rem; border-left: 5px solid #6C63FF; background: #f0f0fa; border-radius: 10px; margin: 1rem 0;">
                             <h4>{row['episodeName']}</h4>
